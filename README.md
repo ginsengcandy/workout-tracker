@@ -1,70 +1,121 @@
-# Getting Started with Create React App
+# Workout Tracker
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A lightweight React application for tracking and analyzing workout performance with daily, weekly, and monthly statistics.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+Input
 
-### `npm start`
+- Log workout sessions with start and end time
+- Record exercise name, target muscle group, weight, and reps
+- Support multiple sets per exercise
+- Multiple exercises in a single session
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Statistics
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- Daily volume statistics (total weight × reps)
+- Weekly and monthly volume trends with bar charts
+- Muscle group distribution pie chart
+- Session summary showing total volume, sets, count, and duration
 
-### `npm test`
+Data Management
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- Persistent storage across browser sessions using browser storage API
+- Edit and delete workout records
+- View historical records by day, week, or month
 
-### `npm run build`
+## Tech Stack
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- React (v18+)
+- Recharts for data visualization
+- localStorage for data persistence
+- CSS-in-JS for styling
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Installation
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Prerequisites: Node.js v14 or higher
 
-### `npm run eject`
+1. Clone the repository
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+git clone <repository-url>
+cd workout-tracker
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. Install dependencies
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+npm install
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+3. Install additional packages
 
-## Learn More
+npm install recharts
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+4. Start development server
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+npm start
 
-### Code Splitting
+The app will open at http://localhost:3000
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Usage
 
-### Analyzing the Bundle Size
+Input Tab
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+1. Select workout date
+2. Enter start and end time
+3. Add exercise details (name, target muscle, weight, reps)
+4. Click "+ 세트 추가" to log multiple sets
+5. Click "+ 운동 추가" to log multiple exercises
+6. Click "저장하기" to save
 
-### Making a Progressive Web App
+Records Tab
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+- View workout records filtered by daily, weekly, or monthly periods
+- Delete records using the delete button
+- See duration, volume, and exercise details
 
-### Advanced Configuration
+Stats Tab
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- View today's summary statistics (volume, sets, duration)
+- Toggle between weekly and monthly views
+- Analyze volume trends with bar chart
+- Review muscle group distribution with pie chart
 
-### Deployment
+## Project Structure
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+src/
+├── App.js          # Main component with all features
+├── index.js        # Entry point
+└── ...
 
-### `npm run build` fails to minify
+## Data Storage
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Workout records are stored in browser localStorage under the key wk_v1 as JSON. Each record contains:
+
+- id: Unique identifier
+- date: YYYY-MM-DD format
+- startTime, endTime: HH:MM format
+- exercises: Array of exercise objects
+    - name: Exercise name
+    - targetMuscle: Muscle group
+    - sets: Array of sets
+        - weight: Weight in kg
+        - reps: Repetitions
+
+## Future Improvements
+
+- Exercise name autocomplete based on input history
+- Auto-fill target muscle group when exercise is selected
+- Show previous session weight and reps as placeholders
+- Dark mode and light mode toggle
+- Export data to CSV or PDF
+- Compare performance across weeks/months
+- Set personal records and track progress
+
+## Browser Compatibility
+
+- Chrome (latest)
+- Firefox (latest)
+- Safari (latest)
+- Edge (latest)
+
+## License
+
+MIT
