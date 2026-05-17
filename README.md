@@ -115,7 +115,6 @@ Workout records are stored in browser localStorage under the key wk_v1 as JSON. 
 - Exercise name autocomplete based on input history
 - Auto-fill target muscle group when exercise is selected
 - Show previous session weight and reps as placeholders
-- Dark mode and light mode toggle
 - Export data to CSV or PDF
 - Compare performance across weeks/months
 - Set personal records and track progress
