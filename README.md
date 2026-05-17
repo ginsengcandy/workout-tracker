@@ -78,12 +78,23 @@ Stats Tab
 - Analyze volume trends with bar chart
 - Review muscle group distribution with pie chart
 
+## Live Demo
+
+https://astonishing-starlight-6975df.netlify.app
+
 ## Project Structure
 
+```
 src/
-├── App.js          # Main component with all features
-├── index.js        # Entry point
-└── ...
+├── App.js              # Main component with all features
+├── App.css             # Application styles
+├── App.test.js         # Component tests
+├── index.js            # Entry point
+├── index.css           # Global styles
+├── logo.svg            # App logo
+├── reportWebVitals.js  # Performance reporting
+└── setupTests.js       # Test configuration
+```
 
 ## Data Storage
 
