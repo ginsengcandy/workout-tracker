@@ -4,6 +4,57 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 const MUSCLES = ["가슴","등","어깨","이두","삼두","하체","복근","전신"];
 const MCOL = { 가슴:"#ef4444",등:"#3b82f6",어깨:"#f59e0b",이두:"#10b981",삼두:"#8b5cf6",하체:"#ec4899",복근:"#06b6d4",전신:"#6b7280" };
 
+const THEME = {
+  dark: {
+    bg:        "#0f172a",
+    card:      "#1e293b",
+    text:      "#e2e8f0",
+    textBright:"#f1f5f9",
+    textSub:   "#94a3b8",
+    textMute:  "#64748b",
+    border:    "#334155",
+    accent:    "#6366f1",
+    inputBg:   "#0f172a",
+  },
+  light: {
+    bg:        "#f8fafc",
+    card:      "#ffffff",
+    text:      "#1e293b",
+    textBright:"#0f172a",
+    textSub:   "#475569",
+    textMute:  "#94a3b8",
+    border:    "#e2e8f0",
+    accent:    "#6366f1",
+    inputBg:   "#f1f5f9",
+  },
+};
+
+const buildS = t => ({
+  app:{background:t.bg,minHeight:"100vh",color:t.text,fontFamily:"system-ui,sans-serif",paddingBottom:80},
+  header:{background:t.card,padding:"16px 20px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"center",gap:10},
+  htitle:{fontSize:17,fontWeight:700,color:t.textBright,margin:0},
+  wrap:{padding:16},
+  card:{background:t.card,borderRadius:12,padding:16,marginBottom:12,border:`1px solid ${t.border}`},
+  label:{fontSize:12,color:t.textSub,marginBottom:5,display:"block"},
+  inp:{width:"100%",background:t.inputBg,border:`1px solid ${t.border}`,borderRadius:8,padding:"9px 12px",color:t.text,fontSize:14,boxSizing:"border-box",outline:"none"},
+  sel:{width:"100%",background:t.inputBg,border:`1px solid ${t.border}`,borderRadius:8,padding:"9px 12px",color:t.text,fontSize:14,boxSizing:"border-box"},
+  row:{display:"flex",gap:10},
+  ptabs:{display:"flex",background:t.inputBg,borderRadius:8,padding:3,marginBottom:16},
+  ptab:a=>({flex:1,padding:"7px 0",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:a?t.accent:"transparent",color:a?"#fff":t.textMute}),
+  btabs:{position:"fixed",bottom:0,left:0,right:0,background:t.card,borderTop:`1px solid ${t.border}`,display:"flex",zIndex:100},
+  btab:a=>({flex:1,padding:"11px 0",background:"none",border:"none",color:a?t.accent:t.textMute,fontSize:12,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}),
+  secTitle:{fontSize:14,fontWeight:700,color:t.textBright,marginBottom:12},
+  tag:m=>({display:"inline-block",padding:"2px 8px",borderRadius:20,fontSize:11,background:(MCOL[m]||"#6b7280")+"22",color:MCOL[m]||"#6b7280",border:`1px solid ${(MCOL[m]||"#6b7280")}44`}),
+  statCard:{background:t.card,borderRadius:12,padding:14,border:`1px solid ${t.border}`,textAlign:"center"},
+  statV:{fontSize:20,fontWeight:700,color:t.accent},
+  statL:{fontSize:11,color:t.textMute,marginTop:3},
+  saveBtn:{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontSize:15,fontWeight:700,background:t.accent,color:"#fff",marginTop:8},
+  addBtn:{width:"100%",padding:11,borderRadius:8,border:`1px solid ${t.border}`,cursor:"pointer",fontSize:13,fontWeight:600,background:"transparent",color:t.textSub,marginBottom:10},
+  sBtn:(v="p")=>({padding:"8px 14px",borderRadius:8,border:v==="d"?"1px solid #ef444433":v==="s"?`1px solid ${t.border}`:"none",cursor:"pointer",fontSize:12,fontWeight:600,background:v==="p"?t.accent:v==="d"?"#ef444411":"transparent",color:v==="p"?"#fff":v==="d"?"#ef4444":t.textSub}),
+  themeBtn:{background:"none",border:"none",cursor:"pointer",fontSize:20,padding:"0 4px",marginLeft:"auto",lineHeight:1},
+  empty:{textAlign:"center",color:t.textMute,paddingTop:60},
+});
+
 const todayStr = () => new Date().toISOString().split("T")[0];
 const fmt = d => { const x=new Date(d); return `${x.getMonth()+1}/${x.getDate()}`; };
 const dur = w => {
@@ -13,31 +64,6 @@ const dur = w => {
   const m=(eh*60+em)-(sh*60+sm); return m>0?`${m}분`:"-";
 };
 const vol = w => w.exercises.reduce((s,e)=>s+e.sets.reduce((ss,st)=>ss+st.weight*st.reps,0),0);
-
-const S = {
-  app:{background:"#0f172a",minHeight:"100vh",color:"#e2e8f0",fontFamily:"system-ui,sans-serif",paddingBottom:80},
-  header:{background:"#1e293b",padding:"16px 20px",borderBottom:"1px solid #334155",display:"flex",alignItems:"center",gap:10},
-  htitle:{fontSize:17,fontWeight:700,color:"#f1f5f9",margin:0},
-  wrap:{padding:16},
-  card:{background:"#1e293b",borderRadius:12,padding:16,marginBottom:12,border:"1px solid #334155"},
-  label:{fontSize:12,color:"#94a3b8",marginBottom:5,display:"block"},
-  inp:{width:"100%",background:"#0f172a",border:"1px solid #334155",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:14,boxSizing:"border-box",outline:"none"},
-  sel:{width:"100%",background:"#0f172a",border:"1px solid #334155",borderRadius:8,padding:"9px 12px",color:"#e2e8f0",fontSize:14,boxSizing:"border-box"},
-  row:{display:"flex",gap:10},
-  ptabs:{display:"flex",background:"#0f172a",borderRadius:8,padding:3,marginBottom:16},
-  ptab:a=>({flex:1,padding:"7px 0",borderRadius:6,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:a?"#6366f1":"transparent",color:a?"#fff":"#64748b"}),
-  btabs:{position:"fixed",bottom:0,left:0,right:0,background:"#1e293b",borderTop:"1px solid #334155",display:"flex",zIndex:100},
-  btab:a=>({flex:1,padding:"11px 0",background:"none",border:"none",color:a?"#6366f1":"#64748b",fontSize:12,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}),
-  secTitle:{fontSize:14,fontWeight:700,color:"#f1f5f9",marginBottom:12},
-  tag:m=>({display:"inline-block",padding:"2px 8px",borderRadius:20,fontSize:11,background:(MCOL[m]||"#6b7280")+"22",color:MCOL[m]||"#6b7280",border:`1px solid ${(MCOL[m]||"#6b7280")}44`}),
-  statCard:{background:"#1e293b",borderRadius:12,padding:14,border:"1px solid #334155",textAlign:"center"},
-  statV:{fontSize:20,fontWeight:700,color:"#6366f1"},
-  statL:{fontSize:11,color:"#64748b",marginTop:3},
-  saveBtn:{width:"100%",padding:14,borderRadius:12,border:"none",cursor:"pointer",fontSize:15,fontWeight:700,background:"#6366f1",color:"#fff",marginTop:8},
-  addBtn:{width:"100%",padding:11,borderRadius:8,border:"1px solid #334155",cursor:"pointer",fontSize:13,fontWeight:600,background:"transparent",color:"#94a3b8",marginBottom:10},
-  sBtn:(v="p")=>({padding:"8px 14px",borderRadius:8,border:v==="d"?"1px solid #ef444433":v==="s"?"1px solid #334155":"none",cursor:"pointer",fontSize:12,fontWeight:600,background:v==="p"?"#6366f1":v==="d"?"#ef444411":"transparent",color:v==="p"?"#fff":v==="d"?"#ef4444":"#94a3b8"}),
-  empty:{textAlign:"center",color:"#475569",paddingTop:60},
-};
 
 const initEx = ()=>({name:"",targetMuscle:"가슴",sets:[{weight:"",reps:""}]});
 
@@ -52,17 +78,27 @@ export default function App() {
   const [rPeriod, setRPeriod]=useState("daily");
   const [sPeriod, setSPeriod]=useState("weekly");
   const [saved, setSaved]=useState(false);
+  const [mode, setMode]=useState(()=>localStorage.getItem("wk_theme")||"dark");
+
+  const t = THEME[mode];
+  const S = buildS(t);
+
+  const toggleMode = () => {
+    const next = mode === "dark" ? "light" : "dark";
+    setMode(next);
+    localStorage.setItem("wk_theme", next);
+  };
 
   useEffect(() => {
-  const data = localStorage.getItem("wk_v1");
-  if (data) setWorkouts(JSON.parse(data));
-  setLoading(false);
-}, []);
+    const data = localStorage.getItem("wk_v1");
+    if (data) setWorkouts(JSON.parse(data));
+    setLoading(false);
+  }, []);
 
   const persist = async (data) => {
-  localStorage.setItem("wk_v1", JSON.stringify(data));
-  setWorkouts(data);
-};
+    localStorage.setItem("wk_v1", JSON.stringify(data));
+    setWorkouts(data);
+  };
 
   const addSet=i=>{const u=[...exs];u[i].sets.push({weight:"",reps:""});setExs(u);};
   const rmSet=(i,j)=>{const u=[...exs];u[i].sets=u[i].sets.filter((_,k)=>k!==j);setExs(u);};
@@ -127,16 +163,18 @@ export default function App() {
     return{volume:v,sets,count:tw.length,mins};
   };
 
-  if(loading) return <div style={{...S.app,display:"flex",justifyContent:"center",alignItems:"center",fontSize:14,color:"#64748b"}}>불러오는 중...</div>;
+  if(loading) return <div style={{...S.app,display:"flex",justifyContent:"center",alignItems:"center",fontSize:14,color:t.textMute}}>불러오는 중...</div>;
 
   const recs=filtered(), ts=todaySt(), mDist=muscleDist(), vData=sPeriod==="weekly"?weeklyVol():monthlyVol();
+  const chartTooltipStyle={background:t.card,border:`1px solid ${t.border}`,borderRadius:8,color:t.text};
 
   return (
     <div style={S.app}>
       <div style={S.header}>
         <span style={{fontSize:22}}>💪</span>
         <p style={S.htitle}>운동 기록</p>
-        {saved&&<span style={{marginLeft:"auto",fontSize:12,color:"#10b981",fontWeight:600}}>✓ 저장됨</span>}
+        {saved&&<span style={{fontSize:12,color:"#10b981",fontWeight:600}}>✓ 저장됨</span>}
+        <button onClick={toggleMode} style={S.themeBtn}>{mode==="dark"?"☀️":"🌙"}</button>
       </div>
 
       <div style={S.wrap}>
@@ -168,16 +206,16 @@ export default function App() {
                 <label style={{...S.label,marginBottom:0}}>세트</label>
                 <button style={{...S.sBtn("s"),padding:"5px 10px"}} onClick={()=>addSet(i)}>+ 세트 추가</button>
               </div>
-              <div style={{background:"#0f172a",borderRadius:8,padding:"4px 8px",marginBottom:4}}>
-                <div style={{display:"flex",gap:8,padding:"5px 0",borderBottom:"1px solid #1e293b"}}>
+              <div style={{background:t.inputBg,borderRadius:8,padding:"4px 8px",marginBottom:4}}>
+                <div style={{display:"flex",gap:8,padding:"5px 0",borderBottom:`1px solid ${t.border}`}}>
                   <div style={{width:28}}/>
-                  <div style={{flex:1,fontSize:11,color:"#475569",textAlign:"center"}}>무게 (kg)</div>
-                  <div style={{flex:1,fontSize:11,color:"#475569",textAlign:"center"}}>반복 수</div>
+                  <div style={{flex:1,fontSize:11,color:t.textMute,textAlign:"center"}}>무게 (kg)</div>
+                  <div style={{flex:1,fontSize:11,color:t.textMute,textAlign:"center"}}>반복 수</div>
                   <div style={{width:32}}/>
                 </div>
                 {ex.sets.map((st,j)=>(
-                  <div key={j} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:j<ex.sets.length-1?"1px solid #1e293b33":"none"}}>
-                    <div style={{width:28,fontSize:12,color:"#475569",textAlign:"center"}}>{j+1}</div>
+                  <div key={j} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:j<ex.sets.length-1?`1px solid ${t.border}`:"none"}}>
+                    <div style={{width:28,fontSize:12,color:t.textMute,textAlign:"center"}}>{j+1}</div>
                     <input type="number" style={{...S.inp,flex:1,textAlign:"center"}} placeholder="0" value={st.weight} onChange={e=>upSet(i,j,"weight",e.target.value)}/>
                     <input type="number" style={{...S.inp,flex:1,textAlign:"center"}} placeholder="0" value={st.reps} onChange={e=>upSet(i,j,"reps",e.target.value)}/>
                     {ex.sets.length>1?<button style={{...S.sBtn("d"),width:32,padding:"6px 0",textAlign:"center"}} onClick={()=>rmSet(i,j)}>✕</button>:<div style={{width:32}}/>}
@@ -204,20 +242,20 @@ export default function App() {
               <div key={w.id} style={S.card}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                   <div>
-                    <p style={{margin:0,fontSize:13,color:"#94a3b8"}}>{w.date} · {w.startTime} ~ {w.endTime}</p>
-                    <p style={{margin:"3px 0 0",fontSize:12,color:"#64748b"}}>운동 {dur(w)} · 볼륨 {vol(w).toLocaleString()}kg</p>
+                    <p style={{margin:0,fontSize:13,color:t.textSub}}>{w.date} · {w.startTime} ~ {w.endTime}</p>
+                    <p style={{margin:"3px 0 0",fontSize:12,color:t.textMute}}>운동 {dur(w)} · 볼륨 {vol(w).toLocaleString()}kg</p>
                   </div>
                   <button style={S.sBtn("d")} onClick={()=>delW(w.id)}>삭제</button>
                 </div>
                 {w.exercises.map((e,i)=>(
-                  <div key={i} style={{marginTop:i>0?10:0,paddingTop:i>0?10:0,borderTop:i>0?"1px solid #334155":"none"}}>
+                  <div key={i} style={{marginTop:i>0?10:0,paddingTop:i>0?10:0,borderTop:i>0?`1px solid ${t.border}`:"none"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                      <span style={{fontSize:14,fontWeight:600,color:"#f1f5f9"}}>{e.name}</span>
+                      <span style={{fontSize:14,fontWeight:600,color:t.textBright}}>{e.name}</span>
                       <span style={S.tag(e.targetMuscle)}>{e.targetMuscle}</span>
                     </div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                       {e.sets.map((st,j)=>(
-                        <span key={j} style={{fontSize:12,color:"#94a3b8",background:"#0f172a",padding:"3px 8px",borderRadius:6}}>
+                        <span key={j} style={{fontSize:12,color:t.textSub,background:t.bg,padding:"3px 8px",borderRadius:6}}>
                           {j+1}세트 {st.weight}kg×{st.reps}
                         </span>
                       ))}
@@ -255,12 +293,12 @@ export default function App() {
           <div style={S.card}>
             <p style={{...S.secTitle,marginBottom:16}}>{sPeriod==="weekly"?"최근 7일":"이번 달"} 볼륨 (kg)</p>
             {vData.every(d=>d.volume===0)
-              ?<p style={{color:"#475569",textAlign:"center",padding:"20px 0"}}>데이터가 없어요</p>
+              ?<p style={{color:t.textMute,textAlign:"center",padding:"20px 0"}}>데이터가 없어요</p>
               :<ResponsiveContainer width="100%" height={180}>
                 <BarChart data={vData} margin={{top:0,right:0,left:-20,bottom:0}}>
-                  <XAxis dataKey="date" tick={{fill:"#64748b",fontSize:10}} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{fill:"#64748b",fontSize:10}} axisLine={false} tickLine={false}/>
-                  <Tooltip contentStyle={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,color:"#e2e8f0"}} cursor={{fill:"#ffffff08"}} formatter={v=>[`${v.toLocaleString()}kg`,"볼륨"]}/>
+                  <XAxis dataKey="date" tick={{fill:t.textMute,fontSize:10}} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{fill:t.textMute,fontSize:10}} axisLine={false} tickLine={false}/>
+                  <Tooltip contentStyle={chartTooltipStyle} cursor={{fill:"#ffffff08"}} formatter={v=>[`${v.toLocaleString()}kg`,"볼륨"]}/>
                   <Bar dataKey="volume" fill="#6366f1" radius={[4,4,0,0]}/>
                 </BarChart>
               </ResponsiveContainer>
@@ -270,14 +308,14 @@ export default function App() {
           <div style={S.card}>
             <p style={{...S.secTitle,marginBottom:16}}>부위별 운동 분포</p>
             {mDist.length===0
-              ?<p style={{color:"#475569",textAlign:"center",padding:"20px 0"}}>데이터가 없어요</p>
+              ?<p style={{color:t.textMute,textAlign:"center",padding:"20px 0"}}>데이터가 없어요</p>
               :<>
                 <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie data={mDist} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine={true} fontSize={11}>
                       {mDist.map((e,i)=><Cell key={i} fill={MCOL[e.name]||"#6b7280"}/>)}
                     </Pie>
-                    <Tooltip contentStyle={{background:"#1e293b",border:"1px solid #334155",borderRadius:8,color:"#e2e8f0"}} formatter={v=>[`${v}회`,"운동 수"]}/>
+                    <Tooltip contentStyle={chartTooltipStyle} formatter={v=>[`${v}회`,"운동 수"]}/>
                   </PieChart>
                 </ResponsiveContainer>
                 <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center",marginTop:8}}>
