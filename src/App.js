@@ -185,8 +185,8 @@ export default function App() {
             <label style={S.label}>날짜</label>
             <input type="date" style={{...S.inp,marginBottom:12}} value={date} onChange={e=>setDate(e.target.value)}/>
             <div style={S.row}>
-              <div style={{flex:1}}><label style={S.label}>시작 시간</label><input type="time" style={S.inp} value={startTime} onChange={e=>setStartTime(e.target.value)}/></div>
-              <div style={{flex:1}}><label style={S.label}>종료 시간</label><input type="time" style={S.inp} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
+              <div style={{flex:1,minWidth:0}}><label style={S.label}>시작 시간</label><input type="time" style={S.inp} value={startTime} onChange={e=>setStartTime(e.target.value)}/></div>
+              <div style={{flex:1,minWidth:0}}><label style={S.label}>종료 시간</label><input type="time" style={S.inp} value={endTime} onChange={e=>setEndTime(e.target.value)}/></div>
             </div>
           </div>
 
