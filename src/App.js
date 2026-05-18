@@ -30,10 +30,10 @@ const THEME = {
 };
 
 const buildS = t => ({
-  app:{background:t.bg,minHeight:"100vh",color:t.text,fontFamily:"system-ui,sans-serif",paddingBottom:80},
+  app:{background:t.bg,minHeight:"100vh",color:t.text,fontFamily:"system-ui,sans-serif",paddingBottom:80,overflowX:"hidden"},
   header:{background:t.card,padding:"16px 20px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"center",gap:10},
   htitle:{fontSize:17,fontWeight:700,color:t.textBright,margin:0},
-  wrap:{padding:16},
+  wrap:{padding:16,width:"100%"},
   card:{background:t.card,borderRadius:12,padding:16,marginBottom:12,border:`1px solid ${t.border}`},
   label:{fontSize:12,color:t.textSub,marginBottom:5,display:"block"},
   inp:{width:"100%",background:t.inputBg,border:`1px solid ${t.border}`,borderRadius:8,padding:"9px 12px",color:t.text,fontSize:14,boxSizing:"border-box",outline:"none"},
