@@ -77,6 +77,7 @@ export default function App() {
   const [exs, setExs]=useState([initEx()]);
   const [rPeriod, setRPeriod]=useState("daily");
   const [sPeriod, setSPeriod]=useState("weekly");
+  const [hPeriod, setHPeriod]=useState("weekly");
   const [saved, setSaved]=useState(false);
   const [mode, setMode]=useState(()=>localStorage.getItem("wk_theme")||"dark");
 
@@ -155,6 +156,34 @@ export default function App() {
     return Object.entries(c).map(([name,value])=>({name,value}));
   };
 
+  const muscleHeatData = () => {
+    const now = new Date();
+    let src;
+    if (hPeriod === "daily") {
+      src = workouts.filter(w => w.date === todayStr());
+    } else if (hPeriod === "weekly") {
+      const d = new Date(now); d.setDate(d.getDate() - 6);
+      src = workouts.filter(w => w.date >= d.toISOString().split("T")[0]);
+    } else {
+      src = workouts.filter(w => w.date >= `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`);
+    }
+    const NON_JEON = ["가슴","등","어깨","이두","삼두","하체","복근"];
+    const raw = Object.fromEntries(NON_JEON.map(m => [m, 0]));
+    src.forEach(w => w.exercises.forEach(e => {
+      const ev = e.sets.reduce((s, st) => s + st.weight * st.reps, 0);
+      if (e.targetMuscle === "전신") {
+        NON_JEON.forEach(m => { raw[m] += ev / 7; });
+      } else if (raw[e.targetMuscle] !== undefined) {
+        raw[e.targetMuscle] += ev;
+      }
+    }));
+    const maxV = Math.max(...Object.values(raw), 0);
+    return Object.fromEntries(NON_JEON.map(m => [m, maxV > 0 ? raw[m] / maxV : 0]));
+  };
+
+  const hexCol = (hex, intensity) =>
+    hex + Math.round((0.10 + intensity * 0.85) * 255).toString(16).padStart(2,"0");
+
   const todaySt=()=>{
     const tw=workouts.filter(w=>w.date===todayStr());
     const v=tw.reduce((s,w)=>s+vol(w),0);
@@ -165,8 +194,46 @@ export default function App() {
 
   if(loading) return <div style={{...S.app,display:"flex",justifyContent:"center",alignItems:"center",fontSize:14,color:t.textMute}}>불러오는 중...</div>;
 
-  const recs=filtered(), ts=todaySt(), mDist=muscleDist(), vData=sPeriod==="weekly"?weeklyVol():monthlyVol();
+  const recs=filtered(), ts=todaySt(), mDist=muscleDist(), vData=sPeriod==="weekly"?weeklyVol():monthlyVol(), heatData=muscleHeatData();
   const chartTooltipStyle={background:t.card,border:`1px solid ${t.border}`,borderRadius:8,color:t.text};
+
+  const BodySVG = ({ side, heatData }) => {
+    const c = m => hexCol(MCOL[m] || "#6b7280", heatData[m] || 0);
+    const isFront = side === "front";
+    return (
+      <svg viewBox="0 0 100 230" style={{ width:"100%", maxWidth:130 }}>
+        <ellipse cx="50" cy="17" rx="10" ry="11" stroke="#64748b" strokeWidth="1.2" fill={t.card}/>
+        <path d="M 36,38 Q 33,72 33,112 L 38,178 L 44,218 L 50,222 L 56,218 L 62,178 L 67,112 Q 67,72 64,38 Q 57,41 50,41 Q 43,41 36,38 Z"
+              stroke="#64748b" strokeWidth="1.2" fill={t.card}/>
+        <path d="M 36,38 Q 24,44 19,60 L 19,88 L 21,115 L 21,158 L 19,178"
+              stroke="#64748b" strokeWidth="1.2" fill="none"/>
+        <path d="M 64,38 Q 76,44 81,60 L 81,88 L 79,115 L 79,158 L 81,178"
+              stroke="#64748b" strokeWidth="1.2" fill="none"/>
+        <ellipse cx="27" cy="49" rx="11" ry="7" fill={c("어깨")}/>
+        <ellipse cx="73" cy="49" rx="11" ry="7" fill={c("어깨")}/>
+        {isFront ? <>
+          <path d="M 34,42 C 34,42 41,38 50,38 C 59,38 66,42 66,42 L 65,63 C 65,63 58,66 50,66 C 42,66 35,63 35,63 Z" fill={c("가슴")}/>
+          <rect x="19" y="60" width="11" height="26" rx="5" fill={c("이두")}/>
+          <rect x="70" y="60" width="11" height="26" rx="5" fill={c("이두")}/>
+          <path d="M 38,66 L 38,108 Q 50,111 62,108 L 62,66 Q 50,69 38,66 Z" fill={c("복근")}/>
+          <line x1="38" y1="78" x2="62" y2="78" stroke={t.card} strokeWidth="1" opacity="0.5"/>
+          <line x1="38" y1="90" x2="62" y2="90" stroke={t.card} strokeWidth="1" opacity="0.5"/>
+          <line x1="38" y1="102" x2="62" y2="102" stroke={t.card} strokeWidth="1" opacity="0.5"/>
+          <line x1="50" y1="66" x2="50" y2="108" stroke={t.card} strokeWidth="1" opacity="0.5"/>
+          <path d="M 37,112 L 34,180 Q 36,183 40,183 Q 44,183 44,180 L 44,112 Z" fill={c("하체")}/>
+          <path d="M 63,112 L 66,180 Q 64,183 60,183 Q 56,183 56,180 L 56,112 Z" fill={c("하체")}/>
+        </> : <>
+          <path d="M 36,42 Q 43,46 50,46 Q 57,46 64,42 L 64,106 Q 57,109 50,109 Q 43,109 36,106 Z" fill={c("등")}/>
+          <path d="M 44,36 Q 50,40 56,36 L 58,42 Q 50,46 42,42 Z" fill={c("등")} opacity="0.7"/>
+          <rect x="19" y="60" width="11" height="28" rx="5" fill={c("삼두")}/>
+          <rect x="70" y="60" width="11" height="28" rx="5" fill={c("삼두")}/>
+          <path d="M 37,112 L 34,180 Q 36,183 40,183 Q 44,183 44,180 L 44,112 Z" fill={c("하체")}/>
+          <path d="M 63,112 L 66,180 Q 64,183 60,183 Q 56,183 56,180 L 56,112 Z" fill={c("하체")}/>
+          <path d="M 37,112 Q 41,118 50,118 Q 59,118 63,112" stroke={c("하체")} strokeWidth="3" fill="none"/>
+        </>}
+      </svg>
+    );
+  };
 
   return (
     <div style={S.app}>
@@ -288,6 +355,37 @@ export default function App() {
             {[["weekly","주간"],["monthly","월간"]].map(([p,l])=>(
               <button key={p} style={S.ptab(sPeriod===p)} onClick={()=>setSPeriod(p)}>{l}</button>
             ))}
+          </div>
+
+          <div style={S.card}>
+            <p style={{...S.secTitle,marginBottom:12}}>근육 사용 히트맵</p>
+            <div style={{...S.ptabs,marginBottom:14}}>
+              {[["daily","오늘"],["weekly","주간"],["monthly","월간"]].map(([p,l])=>(
+                <button key={p} style={S.ptab(hPeriod===p)} onClick={()=>setHPeriod(p)}>{l}</button>
+              ))}
+            </div>
+            {Object.values(heatData).every(v=>v===0)
+              ?<p style={{color:t.textMute,textAlign:"center",padding:"12px 0",fontSize:13}}>이 기간에 운동 기록이 없어요</p>
+              :<>
+                <div style={{display:"flex",justifyContent:"center",gap:16,marginBottom:10}}>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,maxWidth:140}}>
+                    <BodySVG side="front" heatData={heatData}/>
+                    <span style={{fontSize:11,color:t.textMute,marginTop:4}}>앞면</span>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,maxWidth:140}}>
+                    <BodySVG side="rear" heatData={heatData}/>
+                    <span style={{fontSize:11,color:t.textMute,marginTop:4}}>뒷면</span>
+                  </div>
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}}>
+                  {["가슴","등","어깨","이두","삼두","하체","복근"].map(m=>(
+                    <span key={m} style={{...S.tag(m),opacity:(heatData[m]||0)===0?0.35:1}}>
+                      {m} {Math.round((heatData[m]||0)*100)}%
+                    </span>
+                  ))}
+                </div>
+              </>
+            }
           </div>
 
           <div style={S.card}>
