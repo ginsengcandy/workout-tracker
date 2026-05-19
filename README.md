@@ -17,6 +17,7 @@ Statistics
 - Weekly and monthly volume trends with bar charts
 - Muscle group distribution pie chart
 - Session summary showing total volume, sets, count, and duration
+- Body muscle heatmap showing front and rear silhouettes with intensity-colored regions per muscle group
 
 Data Management
 
@@ -74,9 +75,10 @@ Records Tab
 Stats Tab
 
 - View today's summary statistics (volume, sets, duration)
-- Toggle between weekly and monthly views
+- Toggle between weekly and monthly views for volume and distribution charts
 - Analyze volume trends with bar chart
 - Review muscle group distribution with pie chart
+- View body muscle heatmap — front and rear silhouettes with color intensity showing which muscles were trained; toggle between today, weekly, and monthly periods independently
 
 ## Live Demo
 
