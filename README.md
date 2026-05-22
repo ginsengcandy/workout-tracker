@@ -80,6 +80,12 @@ Stats Tab
 - Review muscle group distribution with pie chart
 - View body muscle heatmap — front and rear silhouettes with color intensity showing which muscles were trained; toggle between today, weekly, and monthly periods independently
 
+## Mobile Codex PR Workflow
+
+GitHub Mobile can be used to request code changes by commenting on an issue with `/codex <task>`. The repository workflow creates a branch, runs Codex, verifies the app with tests and build, and opens a pull request for mobile review.
+
+See [docs/mobile-codex-pipeline.md](docs/mobile-codex-pipeline.md) for setup and usage.
+
 ## Live Demo
 
 https://astonishing-starlight-6975df.netlify.app

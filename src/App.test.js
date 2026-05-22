@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders workout tracker input screen', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  expect(screen.getByText('운동 기록')).toBeInTheDocument();
+  expect(screen.getByText('날짜')).toBeInTheDocument();
+  expect(screen.getByPlaceholderText('예: 벤치프레스')).toBeInTheDocument();
 });
