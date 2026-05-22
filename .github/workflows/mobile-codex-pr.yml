@@ -1,0 +1,245 @@
+name: Mobile Codex PR
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Development task for Codex"
+        required: true
+        type: string
+
+concurrency:
+  group: mobile-codex-pr-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    name: Create PR from mobile command
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'issue_comment' &&
+        !github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/codex')
+      )
+
+    steps:
+      - name: Read command and authorize user
+        id: command
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const crypto = require("crypto");
+
+            let task;
+            let issueNumber = "";
+            let sourceUrl = "";
+            let userLogin = context.actor;
+
+            if (context.eventName === "workflow_dispatch") {
+              task = context.payload.inputs.task;
+            } else {
+              const comment = context.payload.comment;
+              const issue = context.payload.issue;
+              task = comment.body.replace(/^\/codex\b/i, "").trim();
+              issueNumber = String(issue.number);
+              sourceUrl = comment.html_url;
+              userLogin = comment.user.login;
+
+              const permission = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: userLogin,
+              });
+              const allowed = ["admin", "maintain", "write"].includes(permission.data.permission);
+              if (!allowed) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `@${userLogin} only users with write access can run /codex commands.`,
+                });
+                core.setOutput("should_run", "false");
+                return;
+              }
+            }
+
+            if (!task) {
+              if (issueNumber) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: Number(issueNumber),
+                  body: "Please add a task after `/codex`, for example `/codex fix the stats chart tooltip`.",
+                });
+              }
+              core.setOutput("should_run", "false");
+              return;
+            }
+
+            const slug = task
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "")
+              .slice(0, 48) || "mobile-task";
+            const hash = crypto.createHash("sha1")
+              .update(`${Date.now()}-${task}`)
+              .digest("hex")
+              .slice(0, 7);
+            const title = task.replace(/\s+/g, " ").trim().slice(0, 72);
+
+            core.setOutput("should_run", "true");
+            core.setOutput("task", task);
+            core.setOutput("title", title);
+            core.setOutput("issue_number", issueNumber);
+            core.setOutput("source_url", sourceUrl);
+            core.setOutput("branch", `codex/mobile-${slug}-${hash}`);
+
+      - name: Acknowledge command
+        if: steps.command.outputs.should_run == 'true' && github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.command.outputs.issue_number }}"),
+              body: "Codex is working on this and will open a PR if tests pass.",
+            });
+
+      - name: Check out repository
+        if: steps.command.outputs.should_run == 'true'
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        if: steps.command.outputs.should_run == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.command.outputs.should_run == 'true'
+        run: npm ci
+
+      - name: Create working branch
+        if: steps.command.outputs.should_run == 'true'
+        run: git switch -c "${{ steps.command.outputs.branch }}"
+
+      - name: Run Codex
+        if: steps.command.outputs.should_run == 'true'
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            You are working in the GitHub Actions runner for ${{ github.repository }}.
+
+            User task:
+            ${{ steps.command.outputs.task }}
+
+            Make the smallest safe code changes needed for the task.
+            Follow the existing React app patterns.
+            Do not edit unrelated files.
+            Run focused checks when useful, but avoid installing new dependencies unless the task clearly needs them.
+            Leave the repository ready to commit.
+
+      - name: Check for changes
+        if: steps.command.outputs.should_run == 'true'
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report no changes
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'false' && github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.command.outputs.issue_number }}"),
+              body: "Codex finished, but did not find any file changes to commit.",
+            });
+
+      - name: Run tests
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true'
+        run: npm test -- --watchAll=false
+
+      - name: Build
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true'
+        run: npm run build
+
+      - name: Commit changes
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Apply mobile Codex task"
+
+      - name: Push branch
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true'
+        run: git push --set-upstream origin "${{ steps.command.outputs.branch }}"
+
+      - name: Open pull request
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK: ${{ steps.command.outputs.task }}
+          TITLE: ${{ steps.command.outputs.title }}
+          SOURCE_URL: ${{ steps.command.outputs.source_url }}
+          BRANCH: ${{ steps.command.outputs.branch }}
+        run: |
+          BODY="Created from a mobile Codex command.
+
+          Task:
+          ${TASK}
+
+          Checks run:
+          - npm test -- --watchAll=false
+          - npm run build"
+
+          if [ -n "$SOURCE_URL" ]; then
+            BODY="${BODY}
+
+          Source command:
+          ${SOURCE_URL}"
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Mobile Codex: ${TITLE}" \
+            --body "$BODY"
+
+      - name: Report failure
+        if: failure() && steps.command.outputs.should_run == 'true' && github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.command.outputs.issue_number }}"),
+              body: `Codex could not complete this task. Check the workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
