@@ -63,9 +63,13 @@ const dur = w => {
   const [eh,em]=w.endTime.split(":").map(Number);
   const m=(eh*60+em)-(sh*60+sm); return m>0?`${m}분`:"-";
 };
-const vol = w => w.exercises.reduce((s,e)=>s+e.sets.reduce((ss,st)=>ss+st.weight*st.reps,0),0);
+const vol = w => w.exercises.reduce((s,e)=>s+e.sets.reduce((ss,st)=>ss+(Number(st.weight)||0)*(Number(st.reps)||0),0),0);
 
 const initEx = ()=>({name:"",targetMuscle:"가슴",sets:[{weight:"",reps:""}]});
+const hasDetails = (startTime,endTime,exs) =>
+    Boolean(startTime||endTime||exs.some(e=>e.name||e.sets.some(s=>s.weight!==""||s.reps!=="")));
+const isComplete = (startTime,endTime,exs) =>
+    Boolean(startTime&&endTime&&exs.every(e=>e.name&&e.sets.every(s=>s.weight!==""&&s.reps!=="")));
 
 export default function App() {
   const [tab, setTab]=useState("input");
@@ -80,6 +84,7 @@ export default function App() {
   const [hPeriod, setHPeriod]=useState("weekly");
   const [saved, setSaved]=useState(false);
   const [mode, setMode]=useState(()=>localStorage.getItem("wk_theme")||"dark");
+  const [editingId, setEditingId]=useState(null);
 
   const t = THEME[mode];
   const S = buildS(t);
@@ -101,6 +106,10 @@ export default function App() {
     setWorkouts(data);
   };
 
+  const resetForm=()=>{
+    setExs([initEx()]);setStartTime("");setEndTime("");setDate(todayStr());setEditingId(null);
+  };
+
   const addSet=i=>{const u=[...exs];u[i].sets.push({weight:"",reps:""});setExs(u);};
   const rmSet=(i,j)=>{const u=[...exs];u[i].sets=u[i].sets.filter((_,k)=>k!==j);setExs(u);};
   const addEx=()=>setExs([...exs,initEx()]);
@@ -109,17 +118,21 @@ export default function App() {
   const upSet=(i,j,f,v)=>{const u=[...exs];u[i].sets[j][f]=v;setExs(u);};
 
   const handleSave=async()=>{
-    if(!startTime||!endTime){alert("시작/종료 시간을 입력해주세요");return;}
-    if(exs.some(e=>!e.name||e.sets.some(s=>s.weight===""||s.reps===""))){alert("운동명과 무게/반복 수를 모두 입력해주세요");return;}
-    const nw={id:Date.now().toString(),date,startTime,endTime,
-      exercises:exs.map(e=>({...e,sets:e.sets.map(s=>({weight:+s.weight,reps:+s.reps}))}))};
-    await persist([...workouts,nw]);
-    setExs([initEx()]);setStartTime("");setEndTime("");setDate(todayStr());
+    if(!hasDetails(startTime,endTime,exs)){alert("저장할 운동 정보를 입력해주세요");return;}
+    const nw={id:editingId||Date.now().toString(),date,startTime,endTime,isTemporary:!isComplete(startTime,endTime,exs),
+      exercises:exs.map(e=>({...e,sets:e.sets.map(s=>({weight:s.weight===""?"":+s.weight,reps:s.reps===""?"":+s.reps}))}))};
+    await persist(editingId?workouts.map(w=>w.id===editingId?nw:w):[...workouts,nw]);
+    resetForm();
     setSaved(true);setTimeout(()=>setSaved(false),2000);
     setTab("records");
   };
 
   const delW=async id=>await persist(workouts.filter(w=>w.id!==id));
+  const editW=w=>{
+    setEditingId(w.id);setDate(w.date);setStartTime(w.startTime||"");setEndTime(w.endTime||"");
+    setExs(w.exercises.map(e=>({...e,sets:e.sets.map(s=>({weight:String(s.weight),reps:String(s.reps)}))})));
+    setTab("input");
+  };
 
   const filtered=()=>{
     const now=new Date();
@@ -133,7 +146,7 @@ export default function App() {
     return Array.from({length:7},(_,i)=>{
       const d=new Date();d.setDate(d.getDate()-(6-i));
       const ds=d.toISOString().split("T")[0];
-      const v=workouts.filter(w=>w.date===ds).reduce((s,w)=>s+vol(w),0);
+      const v=workouts.filter(w=>!w.isTemporary&&w.date===ds).reduce((s,w)=>s+vol(w),0);
       return {date:fmt(ds),volume:v};
     });
   };
@@ -143,15 +156,15 @@ export default function App() {
       const end=new Date();end.setDate(end.getDate()-w*7);
       const start=new Date(end);start.setDate(start.getDate()-6);
       const es=end.toISOString().split("T")[0],ss=start.toISOString().split("T")[0];
-      const v=workouts.filter(wk=>wk.date>=ss&&wk.date<=es).reduce((s,wk)=>s+vol(wk),0);
+      const v=workouts.filter(wk=>!wk.isTemporary&&wk.date>=ss&&wk.date<=es).reduce((s,wk)=>s+vol(wk),0);
       return {date:`${fmt(ss)}~${fmt(es)}`,volume:v};
     }).reverse();
   };
 
   const muscleDist=()=>{
     const src=sPeriod==="weekly"
-        ?()=>{const d=new Date();d.setDate(d.getDate()-6);return workouts.filter(w=>w.date>=d.toISOString().split("T")[0]);}
-        :()=>{const n=new Date();return workouts.filter(w=>w.date>=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`);};
+        ?()=>{const d=new Date();d.setDate(d.getDate()-6);return workouts.filter(w=>!w.isTemporary&&w.date>=d.toISOString().split("T")[0]);}
+        :()=>{const n=new Date();return workouts.filter(w=>!w.isTemporary&&w.date>=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`);};
     const c={};src().forEach(w=>w.exercises.forEach(e=>{c[e.targetMuscle]=(c[e.targetMuscle]||0)+1;}));
     return Object.entries(c).map(([name,value])=>({name,value}));
   };
@@ -160,17 +173,17 @@ export default function App() {
     const now = new Date();
     let src;
     if (hPeriod === "daily") {
-      src = workouts.filter(w => w.date === todayStr());
+      src = workouts.filter(w => !w.isTemporary && w.date === todayStr());
     } else if (hPeriod === "weekly") {
       const d = new Date(now); d.setDate(d.getDate() - 6);
-      src = workouts.filter(w => w.date >= d.toISOString().split("T")[0]);
+      src = workouts.filter(w => !w.isTemporary && w.date >= d.toISOString().split("T")[0]);
     } else {
-      src = workouts.filter(w => w.date >= `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`);
+      src = workouts.filter(w => !w.isTemporary && w.date >= `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`);
     }
     const NON_JEON = ["가슴","등","어깨","이두","삼두","하체","복근"];
     const raw = Object.fromEntries(NON_JEON.map(m => [m, 0]));
     src.forEach(w => w.exercises.forEach(e => {
-      const ev = e.sets.reduce((s, st) => s + st.weight * st.reps, 0);
+      const ev = e.sets.reduce((s, st) => s + (Number(st.weight)||0) * (Number(st.reps)||0), 0);
       if (e.targetMuscle === "전신") {
         NON_JEON.forEach(m => { raw[m] += ev / 7; });
       } else if (raw[e.targetMuscle] !== undefined) {
@@ -185,7 +198,7 @@ export default function App() {
       hex + Math.round((0.10 + intensity * 0.85) * 255).toString(16).padStart(2,"0");
 
   const todaySt=()=>{
-    const tw=workouts.filter(w=>w.date===todayStr());
+    const tw=workouts.filter(w=>!w.isTemporary&&w.date===todayStr());
     const v=tw.reduce((s,w)=>s+vol(w),0);
     const sets=tw.reduce((s,w)=>s+w.exercises.reduce((ss,e)=>ss+e.sets.length,0),0);
     const mins=tw.reduce((s,w)=>{if(!w.startTime||!w.endTime)return s;const[sh,sm]=w.startTime.split(":").map(Number);const[eh,em]=w.endTime.split(":").map(Number);return s+(eh*60+em)-(sh*60+sm);},0);
@@ -330,7 +343,8 @@ export default function App() {
             ))}
 
             <button style={S.addBtn} onClick={addEx}>+ 운동 추가</button>
-            <button style={S.saveBtn} onClick={handleSave}>저장하기</button>
+            {editingId&&<button style={S.addBtn} onClick={resetForm}>수정 취소</button>}
+            <button style={S.saveBtn} onClick={handleSave}>{editingId?"수정 저장":"저장하기"}</button>
           </>}
 
           {/* RECORDS */}
@@ -346,21 +360,24 @@ export default function App() {
                     <div key={w.id} style={S.card}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                         <div>
-                          <p style={{margin:0,fontSize:13,color:t.textSub}}>{w.date} · {w.startTime} ~ {w.endTime}</p>
-                          <p style={{margin:"3px 0 0",fontSize:12,color:t.textMute}}>운동 {dur(w)} · 볼륨 {vol(w).toLocaleString()}kg</p>
+                          <p style={{margin:0,fontSize:13,color:t.textSub}}>{w.date} · {w.startTime||"-"} ~ {w.endTime||"-"}</p>
+                          <p style={{margin:"3px 0 0",fontSize:12,color:t.textMute}}>운동 {dur(w)} · 볼륨 {vol(w).toLocaleString()}kg {w.isTemporary&&"· 임시 저장"}</p>
                         </div>
-                        <button style={S.sBtn("d")} onClick={()=>delW(w.id)}>삭제</button>
+                        <div style={{display:"flex",gap:6}}>
+                          <button style={S.sBtn("s")} onClick={()=>editW(w)}>수정</button>
+                          <button style={S.sBtn("d")} onClick={()=>delW(w.id)}>삭제</button>
+                        </div>
                       </div>
                       {w.exercises.map((e,i)=>(
                           <div key={i} style={{marginTop:i>0?10:0,paddingTop:i>0?10:0,borderTop:i>0?`1px solid ${t.border}`:"none"}}>
                             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                              <span style={{fontSize:14,fontWeight:600,color:t.textBright}}>{e.name}</span>
+                              <span style={{fontSize:14,fontWeight:600,color:t.textBright}}>{e.name||"운동명 없음"}</span>
                               <span style={S.tag(e.targetMuscle)}>{e.targetMuscle}</span>
                             </div>
                             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                               {e.sets.map((st,j)=>(
                                   <span key={j} style={{fontSize:12,color:t.textSub,background:t.bg,padding:"3px 8px",borderRadius:6}}>
-                          {j+1}세트 {st.weight}kg×{st.reps}
+                          {j+1}세트 {st.weight===""?"-":st.weight}kg×{st.reps===""?"-":st.reps}
                         </span>
                               ))}
                             </div>
