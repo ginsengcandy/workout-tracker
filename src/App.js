@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Line, Legend } from "recharts";
 
 const MUSCLES = ["가슴","등","어깨","이두","삼두","하체","복근","전신"];
 const MCOL = { 가슴:"#ef4444",등:"#3b82f6",어깨:"#f59e0b",이두:"#10b981",삼두:"#8b5cf6",하체:"#ec4899",복근:"#06b6d4",전신:"#6b7280" };
@@ -63,13 +63,26 @@ const dur = w => {
   const [eh,em]=w.endTime.split(":").map(Number);
   const m=(eh*60+em)-(sh*60+sm); return m>0?`${m}분`:"-";
 };
-const vol = w => w.exercises.reduce((s,e)=>s+e.sets.reduce((ss,st)=>ss+(Number(st.weight)||0)*(Number(st.reps)||0),0),0);
+const durationTotal = s => (Number(s.durationMinutes)||0)*60+(Number(s.durationSeconds)||0);
+const savedDuration = s => Number(s.durationSec)||durationTotal(s);
+const fmtDuration = sec => {
+  if(!sec) return "-";
+  const m=Math.floor(sec/60), s=sec%60;
+  return `${m}:${String(s).padStart(2,"0")}`;
+};
+const rpm = s => {
+  const seconds=savedDuration(s);
+  return seconds>0 ? (Number(s.reps)||0)/(seconds/60) : 0;
+};
+const bodyweightDuration = w => w.exercises.reduce((s,e)=>s+(e.isBodyweight?e.sets.reduce((ss,st)=>ss+savedDuration(st),0):0),0);
+const vol = w => w.exercises.reduce((s,e)=>e.isBodyweight?s:s+e.sets.reduce((ss,st)=>ss+(Number(st.weight)||0)*(Number(st.reps)||0),0),0);
 
-const initEx = ()=>({name:"",targetMuscle:"가슴",sets:[{weight:"",reps:""}]});
+const initSet = ()=>({weight:"",reps:"",durationMinutes:"",durationSeconds:""});
+const initEx = ()=>({name:"",targetMuscle:"가슴",isBodyweight:false,sets:[initSet()]});
 const hasDetails = (startTime,endTime,exs) =>
-    Boolean(startTime||endTime||exs.some(e=>e.name||e.sets.some(s=>s.weight!==""||s.reps!=="")));
+    Boolean(startTime||endTime||exs.some(e=>e.name||e.sets.some(s=>s.weight!==""||s.reps!==""||durationTotal(s)>0)));
 const isComplete = (startTime,endTime,exs) =>
-    Boolean(startTime&&endTime&&exs.every(e=>e.name&&e.sets.every(s=>s.weight!==""&&s.reps!=="")));
+    Boolean(startTime&&endTime&&exs.every(e=>e.name&&e.sets.every(s=>s.reps!==""&&(e.isBodyweight?durationTotal(s)>0:s.weight!==""))));
 
 export default function App() {
   const [tab, setTab]=useState("input");
@@ -110,7 +123,7 @@ export default function App() {
     setExs([initEx()]);setStartTime("");setEndTime("");setDate(todayStr());setEditingId(null);
   };
 
-  const addSet=i=>{const u=[...exs];u[i].sets.push({weight:"",reps:""});setExs(u);};
+  const addSet=i=>{const u=[...exs];u[i].sets.push(initSet());setExs(u);};
   const rmSet=(i,j)=>{const u=[...exs];u[i].sets=u[i].sets.filter((_,k)=>k!==j);setExs(u);};
   const addEx=()=>setExs([...exs,initEx()]);
   const rmEx=i=>setExs(exs.filter((_,k)=>k!==i));
@@ -120,7 +133,11 @@ export default function App() {
   const handleSave=async()=>{
     if(!hasDetails(startTime,endTime,exs)){alert("저장할 운동 정보를 입력해주세요");return;}
     const nw={id:editingId||Date.now().toString(),date,startTime,endTime,isTemporary:!isComplete(startTime,endTime,exs),
-      exercises:exs.map(e=>({...e,sets:e.sets.map(s=>({weight:s.weight===""?"":+s.weight,reps:s.reps===""?"":+s.reps}))}))};
+      exercises:exs.map(e=>({...e,sets:e.sets.map(s=>({
+        weight:e.isBodyweight?"":(s.weight===""?"":+s.weight),
+        reps:s.reps===""?"":+s.reps,
+        durationSec:e.isBodyweight?durationTotal(s):"",
+      }))}))};
     await persist(editingId?workouts.map(w=>w.id===editingId?nw:w):[...workouts,nw]);
     resetForm();
     setSaved(true);setTimeout(()=>setSaved(false),2000);
@@ -130,7 +147,15 @@ export default function App() {
   const delW=async id=>await persist(workouts.filter(w=>w.id!==id));
   const editW=w=>{
     setEditingId(w.id);setDate(w.date);setStartTime(w.startTime||"");setEndTime(w.endTime||"");
-    setExs(w.exercises.map(e=>({...e,sets:e.sets.map(s=>({weight:String(s.weight),reps:String(s.reps)}))})));
+    setExs(w.exercises.map(e=>({...e,isBodyweight:Boolean(e.isBodyweight),sets:e.sets.map(s=>{
+      const seconds=Number(s.durationSec)||0;
+      return {
+        weight:s.weight===""||s.weight===undefined?"":String(s.weight),
+        reps:s.reps===""||s.reps===undefined?"":String(s.reps),
+        durationMinutes:seconds?String(Math.floor(seconds/60)):"",
+        durationSeconds:seconds?String(seconds%60):"",
+      };
+    })})));
     setTab("input");
   };
 
@@ -146,8 +171,8 @@ export default function App() {
     return Array.from({length:7},(_,i)=>{
       const d=new Date();d.setDate(d.getDate()-(6-i));
       const ds=d.toISOString().split("T")[0];
-      const v=workouts.filter(w=>!w.isTemporary&&w.date===ds).reduce((s,w)=>s+vol(w),0);
-      return {date:fmt(ds),volume:v};
+      const ws=workouts.filter(w=>!w.isTemporary&&w.date===ds);
+      return {date:fmt(ds),volume:ws.reduce((s,w)=>s+vol(w),0),bodyweightDuration:ws.reduce((s,w)=>s+bodyweightDuration(w),0)/60};
     });
   };
 
@@ -156,15 +181,24 @@ export default function App() {
       const end=new Date();end.setDate(end.getDate()-w*7);
       const start=new Date(end);start.setDate(start.getDate()-6);
       const es=end.toISOString().split("T")[0],ss=start.toISOString().split("T")[0];
-      const v=workouts.filter(wk=>!wk.isTemporary&&wk.date>=ss&&wk.date<=es).reduce((s,wk)=>s+vol(wk),0);
-      return {date:`${fmt(ss)}~${fmt(es)}`,volume:v};
+      const ws=workouts.filter(wk=>!wk.isTemporary&&wk.date>=ss&&wk.date<=es);
+      return {date:`${fmt(ss)}~${fmt(es)}`,volume:ws.reduce((s,wk)=>s+vol(wk),0),bodyweightDuration:ws.reduce((s,wk)=>s+bodyweightDuration(wk),0)/60};
     }).reverse();
   };
 
+  const dailyVol=()=>workouts
+      .filter(w=>!w.isTemporary&&w.date===todayStr())
+      .sort((a,b)=>(a.startTime||"").localeCompare(b.startTime||""))
+      .map((w,i)=>({date:w.startTime||`운동 ${i+1}`,volume:vol(w),bodyweightDuration:bodyweightDuration(w)/60}));
+
+  const volumeDurationData=()=>sPeriod==="daily"?dailyVol():sPeriod==="weekly"?weeklyVol():monthlyVol();
+
   const muscleDist=()=>{
-    const src=sPeriod==="weekly"
-        ?()=>{const d=new Date();d.setDate(d.getDate()-6);return workouts.filter(w=>!w.isTemporary&&w.date>=d.toISOString().split("T")[0]);}
-        :()=>{const n=new Date();return workouts.filter(w=>!w.isTemporary&&w.date>=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`);};
+    const src=sPeriod==="daily"
+        ?()=>workouts.filter(w=>!w.isTemporary&&w.date===todayStr())
+        :sPeriod==="weekly"
+          ?()=>{const d=new Date();d.setDate(d.getDate()-6);return workouts.filter(w=>!w.isTemporary&&w.date>=d.toISOString().split("T")[0]);}
+          :()=>{const n=new Date();return workouts.filter(w=>!w.isTemporary&&w.date>=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01`);};
     const c={};src().forEach(w=>w.exercises.forEach(e=>{c[e.targetMuscle]=(c[e.targetMuscle]||0)+1;}));
     return Object.entries(c).map(([name,value])=>({name,value}));
   };
@@ -207,7 +241,7 @@ export default function App() {
 
   if(loading) return <div style={{...S.app,display:"flex",justifyContent:"center",alignItems:"center",fontSize:14,color:t.textMute}}>불러오는 중...</div>;
 
-  const recs=filtered(), ts=todaySt(), mDist=muscleDist(), vData=sPeriod==="weekly"?weeklyVol():monthlyVol(), heatData=muscleHeatData();
+  const recs=filtered(), ts=todaySt(), mDist=muscleDist(), vData=volumeDurationData(), heatData=muscleHeatData();
   const chartTooltipStyle={background:t.card,border:`1px solid ${t.border}`,borderRadius:8,color:t.text};
 
   const BodySVG = ({ side, heatData }) => {
@@ -319,6 +353,10 @@ export default function App() {
                   <select style={{...S.sel,marginBottom:14}} value={ex.targetMuscle} onChange={e=>upEx(i,"targetMuscle",e.target.value)}>
                     {MUSCLES.map(m=><option key={m}>{m}</option>)}
                   </select>
+                  <label style={{...S.label,display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                    <input type="checkbox" checked={Boolean(ex.isBodyweight)} onChange={e=>upEx(i,"isBodyweight",e.target.checked)}/>
+                    맨몸 운동
+                  </label>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                     <label style={{...S.label,marginBottom:0}}>세트</label>
                     <button style={{...S.sBtn("s"),padding:"5px 10px"}} onClick={()=>addSet(i)}>+ 세트 추가</button>
@@ -326,14 +364,26 @@ export default function App() {
                   <div style={{background:t.inputBg,borderRadius:8,padding:"4px 8px",marginBottom:4}}>
                     <div style={{display:"flex",gap:8,padding:"5px 0",borderBottom:`1px solid ${t.border}`}}>
                       <div style={{width:28}}/>
-                      <div style={{flex:1,fontSize:11,color:t.textMute,textAlign:"center"}}>무게 (kg)</div>
+                      {ex.isBodyweight
+                          ?<>
+                            <div style={{flex:1,fontSize:11,color:t.textMute,textAlign:"center"}}>분</div>
+                            <div style={{flex:1,fontSize:11,color:t.textMute,textAlign:"center"}}>초</div>
+                          </>
+                          :<div style={{flex:1,fontSize:11,color:t.textMute,textAlign:"center"}}>무게 (kg)</div>
+                      }
                       <div style={{flex:1,fontSize:11,color:t.textMute,textAlign:"center"}}>반복 수</div>
                       <div style={{width:32}}/>
                     </div>
                     {ex.sets.map((st,j)=>(
                         <div key={j} style={{display:"flex",gap:8,alignItems:"center",padding:"6px 0",borderBottom:j<ex.sets.length-1?`1px solid ${t.border}`:"none"}}>
                           <div style={{width:28,fontSize:12,color:t.textMute,textAlign:"center"}}>{j+1}</div>
-                          <input type="number" style={{...S.inp,flex:1,textAlign:"center"}} placeholder="0" value={st.weight} onChange={e=>upSet(i,j,"weight",e.target.value)}/>
+                          {ex.isBodyweight
+                              ?<>
+                                <input type="number" min="0" style={{...S.inp,flex:1,textAlign:"center"}} placeholder="분" value={st.durationMinutes} onChange={e=>upSet(i,j,"durationMinutes",e.target.value)}/>
+                                <input type="number" min="0" max="59" style={{...S.inp,flex:1,textAlign:"center"}} placeholder="초" value={st.durationSeconds} onChange={e=>upSet(i,j,"durationSeconds",e.target.value)}/>
+                              </>
+                              :<input type="number" style={{...S.inp,flex:1,textAlign:"center"}} placeholder="0" value={st.weight} onChange={e=>upSet(i,j,"weight",e.target.value)}/>
+                          }
                           <input type="number" style={{...S.inp,flex:1,textAlign:"center"}} placeholder="0" value={st.reps} onChange={e=>upSet(i,j,"reps",e.target.value)}/>
                           {ex.sets.length>1?<button style={{...S.sBtn("d"),width:32,padding:"6px 0",textAlign:"center"}} onClick={()=>rmSet(i,j)}>✕</button>:<div style={{width:32}}/>}
                         </div>
@@ -377,7 +427,9 @@ export default function App() {
                             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                               {e.sets.map((st,j)=>(
                                   <span key={j} style={{fontSize:12,color:t.textSub,background:t.bg,padding:"3px 8px",borderRadius:6}}>
-                          {j+1}세트 {st.weight===""?"-":st.weight}kg×{st.reps===""?"-":st.reps}
+                          {e.isBodyweight
+                              ?`${j+1}세트 ${fmtDuration(savedDuration(st))} · ${st.reps===""?"-":st.reps}회 · ${rpm(st).toFixed(1)}회/분`
+                              :`${j+1}세트 ${st.weight===""?"-":st.weight}kg×${st.reps===""?"-":st.reps}`}
                         </span>
                               ))}
                             </div>
@@ -406,7 +458,7 @@ export default function App() {
             </div>
 
             <div style={S.ptabs}>
-              {[["weekly","주간"],["monthly","월간"]].map(([p,l])=>(
+              {[["daily","오늘"],["weekly","주간"],["monthly","월간"]].map(([p,l])=>(
                   <button key={p} style={S.ptab(sPeriod===p)} onClick={()=>setSPeriod(p)}>{l}</button>
               ))}
             </div>
@@ -443,16 +495,19 @@ export default function App() {
             </div>
 
             <div style={S.card}>
-              <p style={{...S.secTitle,marginBottom:16}}>{sPeriod==="weekly"?"최근 7일":"이번 달"} 볼륨 (kg)</p>
-              {vData.every(d=>d.volume===0)
+              <p style={{...S.secTitle,marginBottom:16}}>{sPeriod==="daily"?"오늘":sPeriod==="weekly"?"최근 7일":"이번 달"} 볼륨 및 맨몸 운동 시간</p>
+              {vData.length===0||vData.every(d=>d.volume===0&&d.bodyweightDuration===0)
                   ?<p style={{color:t.textMute,textAlign:"center",padding:"20px 0"}}>데이터가 없어요</p>
                   :<ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={vData} margin={{top:0,right:0,left:-20,bottom:0}}>
+                    <ComposedChart data={vData} margin={{top:0,right:0,left:-20,bottom:0}}>
                       <XAxis dataKey="date" tick={{fill:t.textMute,fontSize:10}} axisLine={false} tickLine={false}/>
-                      <YAxis tick={{fill:t.textMute,fontSize:10}} axisLine={false} tickLine={false}/>
-                      <Tooltip contentStyle={chartTooltipStyle} cursor={{fill:"#ffffff08"}} formatter={v=>[`${v.toLocaleString()}kg`,"볼륨"]}/>
-                      <Bar dataKey="volume" fill="#6366f1" radius={[4,4,0,0]}/>
-                    </BarChart>
+                      <YAxis yAxisId="left" tick={{fill:t.textMute,fontSize:10}} axisLine={false} tickLine={false}/>
+                      <YAxis yAxisId="right" orientation="right" tick={{fill:t.textMute,fontSize:10}} axisLine={false} tickLine={false}/>
+                      <Tooltip contentStyle={chartTooltipStyle} cursor={{fill:"#ffffff08"}} formatter={(v,n)=>n==="bodyweightDuration"?[`${Number(v).toFixed(1)}분`,"맨몸 시간"]:[`${v.toLocaleString()}kg`,"볼륨"]}/>
+                      <Legend wrapperStyle={{fontSize:11,color:t.textMute}} formatter={v=>v==="bodyweightDuration"?"맨몸 시간":"볼륨"}/>
+                      <Bar yAxisId="left" dataKey="volume" fill="#6366f1" radius={[4,4,0,0]}/>
+                      <Line yAxisId="right" type="monotone" dataKey="bodyweightDuration" stroke="#10b981" strokeWidth={2} dot={{r:3}}/>
+                    </ComposedChart>
                   </ResponsiveContainer>
               }
             </div>
