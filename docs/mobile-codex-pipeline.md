@@ -24,7 +24,7 @@ Example:
 The workflow will:
 
 - verify that the commenter has write access
-- create a `codex/mobile-*` branch
+- create a `feat/<issue-title>-<issue-number>` branch
 - run Codex on the task
 - run `npm test -- --watchAll=false`
 - run `npm run build`
@@ -42,4 +42,5 @@ If issue comments are inconvenient, run the `Mobile Codex PR` workflow manually 
 - The workflow ignores `/codex` comments from users without write access.
 - The workflow does not merge to `main`.
 - A PR is created only when Codex changes files and the test/build checks pass.
+- PR titles use `feat: <issue title>`.
 - The OpenAI API key is read from GitHub Secrets and should not be committed.

@@ -44,13 +44,16 @@ jobs:
             let issueNumber = "";
             let sourceUrl = "";
             let userLogin = context.actor;
+            let featureName = "";
 
             if (context.eventName === "workflow_dispatch") {
               task = context.payload.inputs.task;
+              featureName = task;
             } else {
               const comment = context.payload.comment;
               const issue = context.payload.issue;
               task = comment.body.replace(/^\/codex\b/i, "").trim();
+              featureName = issue.title;
               issueNumber = String(issue.number);
               sourceUrl = comment.html_url;
               userLogin = comment.user.login;
@@ -86,23 +89,31 @@ jobs:
               return;
             }
 
-            const slug = task
+            const branchSegment = (value) => value
+              .normalize("NFKC")
+              .trim()
               .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/\s+/g, "-")
+              .replace(/[~^:?*[\\\]]+/g, "")
+              .replace(/[^\p{L}\p{N}._-]+/gu, "-")
+              .replace(/[-.]+$/g, "")
+              .replace(/^[-.]+/g, "")
               .replace(/^-+|-+$/g, "")
-              .slice(0, 48) || "mobile-task";
+              .slice(0, 64) || "feature";
             const hash = crypto.createHash("sha1")
               .update(`${Date.now()}-${task}`)
               .digest("hex")
               .slice(0, 7);
-            const title = task.replace(/\s+/g, " ").trim().slice(0, 72);
+            const featureSlug = branchSegment(featureName);
+            const branchSuffix = issueNumber || hash;
+            const title = featureName.replace(/\s+/g, " ").trim().slice(0, 72);
 
             core.setOutput("should_run", "true");
             core.setOutput("task", task);
             core.setOutput("title", title);
             core.setOutput("issue_number", issueNumber);
             core.setOutput("source_url", sourceUrl);
-            core.setOutput("branch", `codex/mobile-${slug}-${hash}`);
+            core.setOutput("branch", `feat/${featureSlug}-${branchSuffix}`);
 
       - name: Acknowledge command
         if: steps.command.outputs.should_run == 'true' && github.event_name == 'issue_comment'
@@ -228,7 +239,7 @@ jobs:
           gh pr create \
             --base main \
             --head "$BRANCH" \
-            --title "Mobile Codex: ${TITLE}" \
+            --title "feat: ${TITLE}" \
             --body "$BODY"
 
       - name: Report failure
