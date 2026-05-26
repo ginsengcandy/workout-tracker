@@ -37,3 +37,32 @@ test('saves a temporary workout and updates it from records', async () => {
   await waitFor(() => expect(screen.queryByText('벤치프레스')).not.toBeInTheDocument());
   expect(screen.queryByText(/임시 저장/)).not.toBeInTheDocument();
 });
+
+test('keeps muscle heatmap percentages within a 100 percent total', async () => {
+  const today = new Date().toISOString().split('T')[0];
+  localStorage.setItem('wk_v1', JSON.stringify([
+    {
+      id: 'heatmap-test',
+      date: today,
+      startTime: '09:00',
+      endTime: '10:00',
+      isTemporary: false,
+      exercises: [
+        { name: '벤치프레스', targetMuscle: '가슴', sets: [{ weight: 100, reps: 10 }] },
+        { name: '랫풀다운', targetMuscle: '등', sets: [{ weight: 65, reps: 10 }] },
+      ],
+    },
+  ]));
+
+  render(<App />);
+
+  fireEvent.click(screen.getByText('통계'));
+
+  const heatmapLabels = await screen.findAllByText(/^(가슴|등|어깨|이두|삼두|하체|복근) \d+%$/);
+  const total = heatmapLabels.reduce((sum, label) => {
+    const match = label.textContent.match(/(\d+)%$/);
+    return sum + Number(match[1]);
+  }, 0);
+
+  expect(total).toBeLessThanOrEqual(100);
+});
