@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const MUSCLES = ["가슴","등","어깨","이두","삼두","하체","복근","전신"];
+const HEAT_MUSCLES = ["가슴","등","어깨","이두","삼두","하체","복근"];
 const MCOL = { 가슴:"#ef4444",등:"#3b82f6",어깨:"#f59e0b",이두:"#10b981",삼두:"#8b5cf6",하체:"#ec4899",복근:"#06b6d4",전신:"#6b7280" };
 
 const THEME = {
@@ -70,6 +71,21 @@ const hasDetails = (startTime,endTime,exs) =>
     Boolean(startTime||endTime||exs.some(e=>e.name||e.sets.some(s=>s.weight!==""||s.reps!=="")));
 const isComplete = (startTime,endTime,exs) =>
     Boolean(startTime&&endTime&&exs.every(e=>e.name&&e.sets.every(s=>s.weight!==""&&s.reps!=="")));
+const heatPercentages = heatData => {
+  const values = HEAT_MUSCLES.map(m => ({ muscle:m, value:(heatData[m] || 0) * 100 }));
+  const floors = Object.fromEntries(values.map(({ muscle, value }) => [muscle, Math.floor(value)]));
+  let remainder = Math.round(values.reduce((sum, { value }) => sum + value, 0)) -
+      Object.values(floors).reduce((sum, value) => sum + value, 0);
+  values
+      .sort((a, b) => (b.value % 1) - (a.value % 1))
+      .forEach(({ muscle }) => {
+        if (remainder > 0) {
+          floors[muscle] += 1;
+          remainder -= 1;
+        }
+      });
+  return floors;
+};
 
 export default function App() {
   const [tab, setTab]=useState("input");
@@ -180,18 +196,17 @@ export default function App() {
     } else {
       src = workouts.filter(w => !w.isTemporary && w.date >= `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-01`);
     }
-    const NON_JEON = ["가슴","등","어깨","이두","삼두","하체","복근"];
-    const raw = Object.fromEntries(NON_JEON.map(m => [m, 0]));
+    const raw = Object.fromEntries(HEAT_MUSCLES.map(m => [m, 0]));
     src.forEach(w => w.exercises.forEach(e => {
       const ev = e.sets.reduce((s, st) => s + (Number(st.weight)||0) * (Number(st.reps)||0), 0);
       if (e.targetMuscle === "전신") {
-        NON_JEON.forEach(m => { raw[m] += ev / 7; });
+        HEAT_MUSCLES.forEach(m => { raw[m] += ev / HEAT_MUSCLES.length; });
       } else if (raw[e.targetMuscle] !== undefined) {
         raw[e.targetMuscle] += ev;
       }
     }));
-    const maxV = Math.max(...Object.values(raw), 0);
-    return Object.fromEntries(NON_JEON.map(m => [m, maxV > 0 ? raw[m] / maxV : 0]));
+    const totalV = Object.values(raw).reduce((sum, value) => sum + value, 0);
+    return Object.fromEntries(HEAT_MUSCLES.map(m => [m, totalV > 0 ? raw[m] / totalV : 0]));
   };
 
   const hexCol = (hex, intensity) =>
@@ -207,7 +222,7 @@ export default function App() {
 
   if(loading) return <div style={{...S.app,display:"flex",justifyContent:"center",alignItems:"center",fontSize:14,color:t.textMute}}>불러오는 중...</div>;
 
-  const recs=filtered(), ts=todaySt(), mDist=muscleDist(), vData=sPeriod==="weekly"?weeklyVol():monthlyVol(), heatData=muscleHeatData();
+  const recs=filtered(), ts=todaySt(), mDist=muscleDist(), vData=sPeriod==="weekly"?weeklyVol():monthlyVol(), heatData=muscleHeatData(), heatPercents=heatPercentages(heatData);
   const chartTooltipStyle={background:t.card,border:`1px solid ${t.border}`,borderRadius:8,color:t.text};
 
   const BodySVG = ({ side, heatData }) => {
@@ -432,9 +447,9 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center"}}>
-                      {["가슴","등","어깨","이두","삼두","하체","복근"].map(m=>(
+                      {HEAT_MUSCLES.map(m=>(
                           <span key={m} style={{...S.tag(m),opacity:(heatData[m]||0)===0?0.35:1}}>
-                      {m} {Math.round((heatData[m]||0)*100)}%
+                      {m} {heatPercents[m]}%
                     </span>
                       ))}
                     </div>
