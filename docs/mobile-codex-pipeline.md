@@ -24,7 +24,7 @@ Example:
 The workflow will:
 
 - verify that the commenter has write access
-- create a `codex/mobile-*` branch
+- create a `feat/<issue-title>-<issue-number>` branch
 - run Codex on the task
 - run `npm test -- --watchAll=false`
 - run `npm run build`
@@ -33,6 +33,10 @@ The workflow will:
 
 You can then review and merge the PR from GitHub Mobile.
 
+## Pull request command flow
+
+You can also add a `/codex` comment on an existing pull request. In that case, the workflow checks out the pull request head branch, applies the requested changes there, runs tests and build, and pushes back to the same pull request branch. It does not open a second pull request.
+
 ## Manual fallback
 
 If issue comments are inconvenient, run the `Mobile Codex PR` workflow manually from the GitHub Actions tab and fill in the `task` input.
@@ -40,6 +44,8 @@ If issue comments are inconvenient, run the `Mobile Codex PR` workflow manually 
 ## Safety notes
 
 - The workflow ignores `/codex` comments from users without write access.
+- The workflow only updates pull request branches that belong to this repository; fork pull requests are not updated.
 - The workflow does not merge to `main`.
 - A PR is created only when Codex changes files and the test/build checks pass.
+- PR titles use `feat: <issue title>`.
 - The OpenAI API key is read from GitHub Secrets and should not be committed.

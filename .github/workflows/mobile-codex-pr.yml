@@ -27,7 +27,6 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'issue_comment' &&
-        !github.event.issue.pull_request &&
         startsWith(github.event.comment.body, '/codex')
       )
 
@@ -44,16 +43,23 @@ jobs:
             let issueNumber = "";
             let sourceUrl = "";
             let userLogin = context.actor;
+            let featureName = "";
+            let branch = "";
+            let checkoutRef = "main";
+            let isPullRequest = false;
 
             if (context.eventName === "workflow_dispatch") {
               task = context.payload.inputs.task;
+              featureName = task;
             } else {
               const comment = context.payload.comment;
               const issue = context.payload.issue;
               task = comment.body.replace(/^\/codex\b/i, "").trim();
+              featureName = issue.title;
               issueNumber = String(issue.number);
               sourceUrl = comment.html_url;
               userLogin = comment.user.login;
+              isPullRequest = Boolean(issue.pull_request);
 
               const permission = await github.rest.repos.getCollaboratorPermissionLevel({
                 owner: context.repo.owner,
@@ -71,6 +77,27 @@ jobs:
                 core.setOutput("should_run", "false");
                 return;
               }
+
+              if (isPullRequest) {
+                const pull = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: issue.number,
+                });
+                const head = pull.data.head;
+                if (head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: "Codex cannot update pull requests from forks. Please run `/codex` on a branch in this repository.",
+                  });
+                  core.setOutput("should_run", "false");
+                  return;
+                }
+                branch = head.ref;
+                checkoutRef = head.ref;
+              }
             }
 
             if (!task) {
@@ -86,23 +113,36 @@ jobs:
               return;
             }
 
-            const slug = task
+            const branchSegment = (value) => value
+              .normalize("NFKC")
+              .trim()
               .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/\s+/g, "-")
+              .replace(/[~^:?*[\\\]]+/g, "")
+              .replace(/[^\p{L}\p{N}._-]+/gu, "-")
+              .replace(/[-.]+$/g, "")
+              .replace(/^[-.]+/g, "")
               .replace(/^-+|-+$/g, "")
-              .slice(0, 48) || "mobile-task";
+              .slice(0, 64) || "feature";
             const hash = crypto.createHash("sha1")
               .update(`${Date.now()}-${task}`)
               .digest("hex")
               .slice(0, 7);
-            const title = task.replace(/\s+/g, " ").trim().slice(0, 72);
+            const featureSlug = branchSegment(featureName);
+            const branchSuffix = issueNumber || hash;
+            const title = featureName.replace(/\s+/g, " ").trim().slice(0, 72);
+            if (!branch) {
+              branch = `feat/${featureSlug}-${branchSuffix}`;
+            }
 
             core.setOutput("should_run", "true");
             core.setOutput("task", task);
             core.setOutput("title", title);
             core.setOutput("issue_number", issueNumber);
             core.setOutput("source_url", sourceUrl);
-            core.setOutput("branch", `codex/mobile-${slug}-${hash}`);
+            core.setOutput("branch", branch);
+            core.setOutput("checkout_ref", checkoutRef);
+            core.setOutput("is_pull_request", isPullRequest ? "true" : "false");
 
       - name: Acknowledge command
         if: steps.command.outputs.should_run == 'true' && github.event_name == 'issue_comment'
@@ -121,7 +161,7 @@ jobs:
         if: steps.command.outputs.should_run == 'true'
         uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ steps.command.outputs.checkout_ref }}
           fetch-depth: 0
 
       - name: Set up Node.js
@@ -136,7 +176,7 @@ jobs:
         run: npm ci
 
       - name: Create working branch
-        if: steps.command.outputs.should_run == 'true'
+        if: steps.command.outputs.should_run == 'true' && steps.command.outputs.is_pull_request != 'true'
         run: git switch -c "${{ steps.command.outputs.branch }}"
 
       - name: Run Codex
@@ -198,10 +238,10 @@ jobs:
 
       - name: Push branch
         if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true'
-        run: git push --set-upstream origin "${{ steps.command.outputs.branch }}"
+        run: git push --set-upstream origin HEAD:"${{ steps.command.outputs.branch }}"
 
       - name: Open pull request
-        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true'
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true' && steps.command.outputs.is_pull_request != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TASK: ${{ steps.command.outputs.task }}
@@ -228,8 +268,21 @@ jobs:
           gh pr create \
             --base main \
             --head "$BRANCH" \
-            --title "Mobile Codex: ${TITLE}" \
+            --title "feat: ${TITLE}" \
             --body "$BODY"
+
+      - name: Report pull request update
+        if: steps.command.outputs.should_run == 'true' && steps.changes.outputs.has_changes == 'true' && steps.command.outputs.is_pull_request == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number("${{ steps.command.outputs.issue_number }}"),
+              body: "Codex pushed an update to this pull request branch after tests and build passed.",
+            });
 
       - name: Report failure
         if: failure() && steps.command.outputs.should_run == 'true' && github.event_name == 'issue_comment'
