@@ -67,6 +67,20 @@ const dur = w => {
 const vol = w => w.exercises.reduce((s,e)=>s+e.sets.reduce((ss,st)=>ss+(Number(st.weight)||0)*(Number(st.reps)||0),0),0);
 
 const initEx = ()=>({name:"",targetMuscle:"가슴",sets:[{weight:"",reps:""}]});
+const readTheme = () => {
+  const stored = localStorage.getItem("wk_theme");
+  return THEME[stored] ? stored : "dark";
+};
+const readWorkouts = () => {
+  const data = localStorage.getItem("wk_v1");
+  if (!data) return [];
+  try {
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 const hasDetails = (startTime,endTime,exs) =>
     Boolean(startTime||endTime||exs.some(e=>e.name||e.sets.some(s=>s.weight!==""||s.reps!=="")));
 const isComplete = (startTime,endTime,exs) =>
@@ -99,7 +113,7 @@ export default function App() {
   const [sPeriod, setSPeriod]=useState("weekly");
   const [hPeriod, setHPeriod]=useState("weekly");
   const [saved, setSaved]=useState(false);
-  const [mode, setMode]=useState(()=>localStorage.getItem("wk_theme")||"dark");
+  const [mode, setMode]=useState(readTheme);
   const [editingId, setEditingId]=useState(null);
 
   const t = THEME[mode];
@@ -112,8 +126,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    const data = localStorage.getItem("wk_v1");
-    if (data) setWorkouts(JSON.parse(data));
+    setWorkouts(readWorkouts());
     setLoading(false);
   }, []);
 

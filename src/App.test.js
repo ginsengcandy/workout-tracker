@@ -12,6 +12,16 @@ test('renders workout tracker input screen', () => {
   expect(screen.getByPlaceholderText('예: 벤치프레스')).toBeInTheDocument();
 });
 
+test('ignores malformed saved localStorage data', () => {
+  localStorage.setItem('wk_v1', '{not valid json');
+  localStorage.setItem('wk_theme', 'unknown');
+
+  render(<App />);
+
+  expect(screen.getByText('운동 기록')).toBeInTheDocument();
+  expect(screen.getByText('날짜')).toBeInTheDocument();
+});
+
 test('saves a temporary workout and updates it from records', async () => {
   const { container } = render(<App />);
 
