@@ -85,6 +85,14 @@ const hasDetails = (startTime,endTime,exs) =>
     Boolean(startTime||endTime||exs.some(e=>e.name||e.sets.some(s=>s.weight!==""||s.reps!=="")));
 const isComplete = (startTime,endTime,exs) =>
     Boolean(startTime&&endTime&&exs.every(e=>e.name&&e.sets.every(s=>s.weight!==""&&s.reps!=="")));
+const cloneExercisesForForm = exercises =>
+    (Array.isArray(exercises) && exercises.length ? exercises : [initEx()])
+        .map(e=>({
+          name:e.name || "",
+          targetMuscle:e.targetMuscle || "가슴",
+          sets:(Array.isArray(e.sets) && e.sets.length ? e.sets : [{weight:"",reps:""}])
+              .map(s=>({weight:s.weight===""?"":String(s.weight),reps:s.reps===""?"":String(s.reps)})),
+        }));
 const heatPercentages = heatData => {
   const values = HEAT_MUSCLES.map(m => ({ muscle:m, value:(heatData[m] || 0) * 100 }));
   const floors = Object.fromEntries(values.map(({ muscle, value }) => [muscle, Math.floor(value)]));
@@ -106,6 +114,7 @@ export default function App() {
   const [workouts, setWorkouts]=useState([]);
   const [loading, setLoading]=useState(true);
   const [date, setDate]=useState(todayStr());
+  const [title, setTitle]=useState("");
   const [startTime, setStartTime]=useState("");
   const [endTime, setEndTime]=useState("");
   const [exs, setExs]=useState([initEx()]);
@@ -136,7 +145,7 @@ export default function App() {
   };
 
   const resetForm=()=>{
-    setExs([initEx()]);setStartTime("");setEndTime("");setDate(todayStr());setEditingId(null);
+    setTitle("");setExs([initEx()]);setStartTime("");setEndTime("");setDate(todayStr());setEditingId(null);
   };
 
   const addSet=i=>{const u=[...exs];u[i].sets.push({weight:"",reps:""});setExs(u);};
@@ -146,9 +155,19 @@ export default function App() {
   const upEx=(i,f,v)=>{const u=[...exs];u[i][f]=v;setExs(u);};
   const upSet=(i,j,f,v)=>{const u=[...exs];u[i].sets[j][f]=v;setExs(u);};
 
+  const titleOptions = Array.from(new Set(workouts.map(w=>(w.title||"").trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  const findLatestWorkoutByTitle = workoutTitle => [...workouts]
+      .filter(w=>(w.title||"").trim()===workoutTitle)
+      .sort((a,b)=>`${b.date || ""} ${b.startTime || ""}`.localeCompare(`${a.date || ""} ${a.startTime || ""}`))[0];
+  const loadWorkoutTitle = workoutTitle => {
+    setTitle(workoutTitle);
+    const source = findLatestWorkoutByTitle(workoutTitle);
+    if(source) setExs(cloneExercisesForForm(source.exercises));
+  };
+
   const handleSave=async()=>{
     if(!hasDetails(startTime,endTime,exs)){alert("저장할 운동 정보를 입력해주세요");return;}
-    const nw={id:editingId||Date.now().toString(),date,startTime,endTime,isTemporary:!isComplete(startTime,endTime,exs),
+    const nw={id:editingId||Date.now().toString(),title:title.trim(),date,startTime,endTime,isTemporary:!isComplete(startTime,endTime,exs),
       exercises:exs.map(e=>({...e,sets:e.sets.map(s=>({weight:s.weight===""?"":+s.weight,reps:s.reps===""?"":+s.reps}))}))};
     await persist(editingId?workouts.map(w=>w.id===editingId?nw:w):[...workouts,nw]);
     resetForm();
@@ -158,8 +177,8 @@ export default function App() {
 
   const delW=async id=>await persist(workouts.filter(w=>w.id!==id));
   const editW=w=>{
-    setEditingId(w.id);setDate(w.date);setStartTime(w.startTime||"");setEndTime(w.endTime||"");
-    setExs(w.exercises.map(e=>({...e,sets:e.sets.map(s=>({weight:String(s.weight),reps:String(s.reps)}))})));
+    setEditingId(w.id);setTitle(w.title||"");setDate(w.date);setStartTime(w.startTime||"");setEndTime(w.endTime||"");
+    setExs(cloneExercisesForForm(w.exercises));
     setTab("input");
   };
 
@@ -327,6 +346,15 @@ export default function App() {
           {tab==="input"&&<>
             <div style={S.card}>
               <p style={{...S.secTitle,marginBottom:14}}>운동 정보</p>
+              <label style={S.label}>운동 제목</label>
+              <input style={{...S.inp,marginBottom:titleOptions.length?10:12}} placeholder="예: 가슴 & 팔" value={title} onChange={e=>setTitle(e.target.value)}/>
+              {titleOptions.length>0&&<>
+                <label style={S.label}>기존 제목 불러오기</label>
+                <select style={{...S.sel,marginBottom:12}} value="" onChange={e=>{if(e.target.value) loadWorkoutTitle(e.target.value);}}>
+                  <option value="">운동 제목 선택</option>
+                  {titleOptions.map(option=><option key={option} value={option}>{option}</option>)}
+                </select>
+              </>}
               <label style={S.label}>날짜</label>
               <input type="date" style={{...S.inp,marginBottom:12}} value={date} onChange={e=>setDate(e.target.value)}/>
               <div style={S.row}>
@@ -388,6 +416,7 @@ export default function App() {
                     <div key={w.id} style={S.card}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                         <div>
+                          {(w.title||"").trim()&&<p style={{margin:"0 0 4px",fontSize:15,fontWeight:700,color:t.textBright}}>{w.title}</p>}
                           <p style={{margin:0,fontSize:13,color:t.textSub}}>{w.date} · {w.startTime||"-"} ~ {w.endTime||"-"}</p>
                           <p style={{margin:"3px 0 0",fontSize:12,color:t.textMute}}>운동 {dur(w)} · 볼륨 {vol(w).toLocaleString()}kg {w.isTemporary&&"· 임시 저장"}</p>
                         </div>
